@@ -1,0 +1,23 @@
+Je veux construire une application web de gestion d'un super marché nommé "Fanny & Compagnie".
+Cette application est simple. Elle permet de:
+1- stocker (ajouter, retirer, modifier) des articles en y attribuant des prix et en générant des matriculesID, la date ainsi que la date de péremption par catégorie par le gestionnaire des stocks, de contrôler le stock en permanence et alerter en cas de seuil de fin de stock afin qu'il demande un réapprovisionnement ou produit périmé afin de le retirer. Il doit pouvoir regarder le nombre de produits entrant et sortant. Chaque article fait partie d'un lot et chaque lot vient d'investisseur. Donc le gérant doit ajouter un fournisseur, créer un lot de produit, définir le nombre de produits disponibles dans ce lot en y attribuant un prix qui sera le même pour tous les produits de ce lot et en générant un matriculesID qui sera aussi représenté en code bar pour coller sur l'article, la date ainsi que la date de péremption du lot (qui est généralement la date de péremption de chaque produit du lot).
+ 
+2- vendre les articles par une caissière qui va vendre chaque article disponible en stock en retirant les articles qui ont été acheté par les clients (donc en diminuant ainsi le nombre de produit disponible dans chacun des lots concernés), en faisant les additions pour chaque patient, puis en générant un reçu pour chaque client et en utilisant des bons de réductions pour certains client qui ont un pourcentage de réduction propre à eux afin de diminuer leurs prix d'achats totaux. Donc la caissière a un ordinateur bureau et choisit les articles du clients dans depuis les stocks pour faire l'addition et le ticket, elle scanne le code QR (en utilisant la camera de l'ordi pour prendre la photo) sur la carte de fidélité disponible sur le compte client depuis son téléphone.
+
+3- créer des comptes clients (leurs interface sera disponible sur une adresse spécifique pour ne pas mélanger les choses) qui bénéficient de réductions de 5% sur ses 5 prochains achats, uniquement que s'il a déjà réalisé au moins 10 achats d'au moins 5000Fr chacun (donc créer des fonctions bien définies pour ça). Le client qui a son compte, aura un code QR propre à lui qui va lui permettre de définir par la caissière
+
+4- gérer les employés (caissières) en définissants leurs jours de travail et heures de travail par jour à chacun d'eux et en leur permettant d'envoyer des lettres pour des pauses ou des cas de maladies par exemple au RH en question. Il doit pouvoir aussi contrôler pendant combien d'heures chaque caissière a travaillé dans le mois sur un an.
+
+5-Un superviseur qui surveille les stocks précision et filtre, qui surveille les ventes et sais combien a été vendu ou combien a été annulé (périmé), qui surveille le nombre d'employés ainsi que leurs salaires respectifs avec la somme de tous les salaires, qui voit combien a été investi, quel est le gain et quels sont les pertes en termes d'argent, qui voit le chiffre d'affaire et le revenu net de l'entreprise.
+
+NB: Pour chacun de ces cas (1, 2, 3, 4 et 5), il s'agit de créer une plateforme à part entière pour chacun d'entre eux et tous doit être interconnecté:
+
+1- Application de gestion des stocks pour le gérant des stocks afin que les caissières utilisent ses données
+
+2- Application pour les caissières afin qu'elles puissent créer des tickets d'achats et modifier les stocks en fonctions des achats.
+
+3- Application pour le client, juste une page d'authentification et une page et une page où il y a sa carte de fidélité contenant son nom, ses points ainsi que son code QR.
+
+4- Une application pour le RH
+
+5- Un application pour le superviseur, juste une page.

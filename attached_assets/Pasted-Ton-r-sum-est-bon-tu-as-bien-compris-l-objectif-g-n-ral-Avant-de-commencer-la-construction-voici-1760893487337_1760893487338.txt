@@ -1,0 +1,84 @@
+Ton résumé est bon, tu as bien compris l’objectif général.
+Avant de commencer la construction, voici les précisions importantes à prendre en compte dans le développement :
+
+1️⃣ Gestion des Stocks
+
+Chaque lot appartient à un fournisseur et à un produit.
+
+Un lot contient : un matriculeID unique (code-barre à générer), le prix unitaire, la quantité totale, la quantité restante, la date d’entrée et la date de péremption.
+
+Lorsqu’on vend, la quantité est retirée du ou des lots correspondants selon la méthode FEFO (First Expiring First Out).
+
+Alerte automatique :
+
+Si le stock d’un lot passe sous un seuil (à définir par produit).
+
+Si un produit est périmé.
+
+2️⃣ Vente / Caisse
+
+Lors d’une vente, la caissière sélectionne les articles depuis le stock ou les scanne (code-barre).
+
+L’application décrémente automatiquement les quantités dans les lots utilisés.
+
+Elle génère un reçu imprimable pour chaque client.
+
+Le client peut être identifié par scan du QR code sur sa carte de fidélité.
+
+3️⃣ Fidélité Clients
+
+Un client a droit à une réduction de 5% sur ses 5 prochains achats, mais uniquement s’il a déjà réalisé au moins 10 achats d’un montant minimum de 5000 FCFA chacun.
+
+Ce calcul doit être automatique au moment du paiement.
+
+Chaque client a un QR code unique et une carte de fidélité affichant son nom, ses points et ses avantages.
+
+4️⃣ Gestion du Personnel (RH)
+
+Les employés (caissières) ont leurs jours et heures de travail définis.
+
+Ils peuvent envoyer des demandes de congé ou maladie au RH.
+
+Le système calcule le nombre total d’heures travaillées par mois et par an.
+
+5️⃣ Superviseur
+
+Il doit voir :
+
+Les ventes totales, les produits périmés ou retirés, les stocks restants.
+
+Le nombre d’employés, leurs salaires, la masse salariale totale.
+
+Les investissements, gains, pertes, chiffre d’affaires et bénéfice net.
+
+6️⃣ Architecture globale
+
+Il faut bien 5 modules interconnectés :
+
+Gestionnaire de stock
+
+Caisse
+
+Client
+
+Ressources humaines (RH)
+
+Superviseur
+
+Tous connectés à une base de données commune et à un système d’authentification multi-rôles (chaque profil a sa propre interface).
+
+⚙️ Points techniques à respecter :
+
+Gérer la vente selon la logique des lots FEFO.
+
+Mettre en place un système d’alertes automatique (stock bas, péremption).
+
+Gérer les QR codes (clients) et codes-barres (lots) automatiquement.
+
+Rendre le système de fidélité automatique.
+
+Assurer que les droits d’accès sont bien séparés entre les rôles (gérant stock, caissière, client, RH, superviseur).
+
+🧭 Ta mission maintenant :
+Confirme que tu as bien pris en compte toutes ces précisions et que le plan de conception et de développement respectera exactement ces règles, sans simplification.
+Ensuite, propose-moi la structure complète de la base de données et les interactions entre les 5 modules.
