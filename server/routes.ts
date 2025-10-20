@@ -38,6 +38,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Fetch a user by id (for enriching client display names at cashier)
+  app.get("/api/users/:id", isAuthenticated, async (req, res) => {
+    try {
+      const id = req.params.id;
+      const user = await storage.getUser(id);
+      if (!user) return res.status(404).json({ message: "User not found" });
+      res.json(user);
+    } catch (error) {
+      console.error("Error fetching user by id:", error);
+      res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  // Role guard
+  function requireRole(role: "supervisor") {
+    return (req: any, res: any, next: any) => {
+      if (!req.user || req.user.role !== role) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      next();
+    };
+  }
+
+  // Supervisor: list users
+  app.get("/api/users", isAuthenticated, requireRole("supervisor"), async (_req, res) => {
+    try {
+      const users = await storage.getAllUsers();
+      res.json(users);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+
+  // Supervisor: update user role
+  app.patch("/api/users/:id/role", isAuthenticated, requireRole("supervisor"), async (req, res) => {
+    try {
+      const id = req.params.id;
+      const { role } = req.body as { role?: string };
+      const allowed = [
+        "pending",
+        "stock_manager",
+        "cashier",
+        "client",
+        "hr",
+        "supervisor",
+      ];
+      if (!role || !allowed.includes(role)) {
+        return res.status(400).json({ message: "Invalid role" });
+      }
+      const updated = await storage.updateUserRole(id, role as any);
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating user role:", error);
+      res.status(500).json({ message: "Failed to update user role" });
+    }
+  });
+
   // Supplier routes
   app.get("/api/suppliers", isAuthenticated, async (req, res) => {
     try {
@@ -94,10 +152,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/lots", isAuthenticated, async (req, res) => {
     try {
       const matriculeId = generateMatriculeId();
+      const {
+        productId,
+        supplierId,
+        unitPrice,
+        initialQuantity,
+        expirationDate,
+      } = req.body || {};
+
+      // Basic validations and coercions
+      const pid = Number(productId);
+      const sid = Number(supplierId);
+      const qty = Number(initialQuantity);
+
+      // Coerce expirationDate to Date safely
+      let exp: Date | null = null;
+      if (expirationDate instanceof Date) {
+        exp = expirationDate;
+      } else if (typeof expirationDate === "string" || typeof expirationDate === "number") {
+        exp = new Date(expirationDate);
+      }
+
+      // Validate required fields
+      if (!pid || !sid || !qty || !unitPrice || !exp || Number.isNaN(exp.getTime())) {
+        return res.status(400).json({
+          message: "Invalid payload for lot creation",
+          details: {
+            productId: productId,
+            supplierId: supplierId,
+            unitPrice: unitPrice,
+            initialQuantity: initialQuantity,
+            expirationDate: expirationDate,
+          },
+        });
+      }
+
       const lot = await storage.createLot({
-        ...req.body,
         matriculeId,
-        remainingQuantity: req.body.initialQuantity,
+        productId: pid,
+        supplierId: sid,
+        unitPrice: unitPrice.toString(),
+        initialQuantity: qty,
+        remainingQuantity: qty,
+        expirationDate: exp,
         status: "active",
       });
 
@@ -160,6 +257,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching client by QR:", error);
       res.status(500).json({ message: "Failed to fetch client" });
+    }
+  });
+
+  // Get a client by id (enriched with user)
+  app.get("/api/clients/:id", isAuthenticated, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isFinite(id)) {
+        return res.status(400).json({ message: "Invalid client id" });
+      }
+      const client = await storage.getClient(id);
+      if (!client) return res.status(404).json({ message: "Client not found" });
+      const user = await storage.getUser(client.userId);
+      res.json({ ...client, user });
+    } catch (error) {
+      console.error("Error fetching client by id:", error);
+      res.status(500).json({ message: "Failed to fetch client" });
+    }
+  });
+
+  // List purchases for a client id
+  app.get("/api/clients/:id/purchases", isAuthenticated, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isFinite(id)) {
+        return res.status(400).json({ message: "Invalid client id" });
+      }
+      const purchases = await storage.getPurchasesByClient(id);
+      res.json(purchases);
+    } catch (error) {
+      console.error("Error fetching purchases for client id:", error);
+      res.status(500).json({ message: "Failed to fetch purchases" });
     }
   });
 

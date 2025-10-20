@@ -16,16 +16,29 @@ export default function Landing() {
           <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
             Système de gestion complet pour votre supermarché
           </p>
-          <Button
-            size="lg"
-            onClick={() => {
-              window.location.href = "/api/login";
-            }}
-            data-testid="button-login"
-            className="text-base px-8"
-          >
-            Se Connecter
-          </Button>
+          <div className="flex items-center justify-center gap-3">
+            <Button
+              size="lg"
+              onClick={() => {
+                window.location.href = "/api/login";
+              }}
+              data-testid="button-login"
+              className="text-base px-8"
+            >
+              Se Connecter
+            </Button>
+            <Button
+              size="lg"
+              variant="secondary"
+              onClick={() => {
+                window.location.href = "/api/login";
+              }}
+              data-testid="button-login-pending"
+              className="text-base px-8"
+            >
+              Se Connecter (en attente de rôle)
+            </Button>
+          </div>
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">

@@ -19,6 +19,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+// QR Scanner
+// Requires: npm i @yudiel/react-qr-scanner
+import { Scanner } from "@yudiel/react-qr-scanner";
 import {
   Select,
   SelectContent,
@@ -37,9 +40,11 @@ import {
   Receipt,
   Search,
 } from "lucide-react";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, apiRequestJson, queryClient } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import type { Product, Lot, Client } from "@shared/schema";
+
+type ClientWithUser = Client & { user?: { firstName?: string; lastName?: string } };
 
 interface CartItem {
   productId: number;
@@ -52,11 +57,12 @@ export default function Cashier() {
   const { toast } = useToast();
   const { user, isAuthenticated, isLoading } = useAuth();
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [selectedClient, setSelectedClient] = useState<ClientWithUser | null>(null);
   const [qrCodeInput, setQrCodeInput] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [showReceipt, setShowReceipt] = useState(false);
   const [lastReceipt, setLastReceipt] = useState<any>(null);
+  const [showQRScanner, setShowQRScanner] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -85,22 +91,73 @@ export default function Cashier() {
       clientId?: number;
       paymentMethod: string;
     }) => {
-      return await apiRequest("POST", "/api/sales", data);
+      return await apiRequestJson<any>("POST", "/api/sales", data);
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
+      console.debug("Sale success:", data);
+      // Snapshot current cart and totals for the receipt before clearing state
+      const safeUid = selectedClient?.userId
+        ? `UID:${selectedClient.userId.slice(0, 6)}...`
+        : "Client";
+      const receiptSnapshot = {
+        receiptNumber: (data as any).receiptNumber,
+        paymentMethod: (data as any).paymentMethod,
+        date: new Date().toISOString(),
+        client: selectedClient,
+        clientDisplayName: selectedClient
+          ? ((): string => {
+              const u: any = selectedClient.user || {};
+              const fn = u.first_name ?? u.firstName ?? "";
+              const ln = u.last_name ?? u.lastName ?? "";
+              const full = `${fn} ${ln}`.trim();
+              if (full.length > 0) return full;
+              if (u.email) return u.email;
+              return safeUid;
+            })()
+          : null,
+        items: cart.map((item) => ({
+          productId: item.productId,
+          productName: item.productName,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          subtotal: item.unitPrice * item.quantity,
+        })),
+        subtotal,
+        discountAmount,
+        total,
+      };
       queryClient.invalidateQueries({ queryKey: ["/api/lots"] });
       queryClient.invalidateQueries({ queryKey: ["/api/sales"] });
+      // Refresh selected client CRM (points/purchases) if any
+      try {
+        if (selectedClient?.id) {
+          const refreshed = await apiRequestJson<ClientWithUser>(
+            "GET",
+            `/api/clients/${selectedClient.id}`,
+            undefined,
+          );
+          setSelectedClient(refreshed);
+        }
+      } catch (e) {
+        console.debug("Client refresh failed", e);
+      }
       toast({
         title: "Vente effectuée",
         description: "La transaction a été enregistrée avec succès.",
       });
-      setLastReceipt(data);
+      setLastReceipt(receiptSnapshot);
       setShowReceipt(true);
+      // Trigger browser print shortly after opening the receipt dialog
+      setTimeout(() => {
+        try {
+          window.print();
+        } catch {}
+      }, 300);
       setCart([]);
-      setSelectedClient(null);
       setQrCodeInput("");
     },
-    onError: (error) => {
+    onError: async (error: any) => {
+      console.debug("Sale error:", error);
       if (isUnauthorizedError(error)) {
         toast({
           title: "Non autorisé",
@@ -112,9 +169,11 @@ export default function Cashier() {
         }, 500);
         return;
       }
+      // Try to display server error message if available
+      const message = (error?.responseJSON?.message || error?.message || "Impossible d'effectuer la vente.");
       toast({
         title: "Erreur",
-        description: "Impossible d'effectuer la vente.",
+        description: message,
         variant: "destructive",
       });
     },
@@ -122,14 +181,46 @@ export default function Cashier() {
 
   const scanClientMutation = useMutation({
     mutationFn: async (qrCode: string) => {
-      return await apiRequest("GET", `/api/clients/qr/${qrCode}`, undefined);
+      return await apiRequestJson<ClientWithUser>(
+        "GET",
+        `/api/clients/qr/${qrCode}`,
+        undefined,
+      );
     },
     onSuccess: (data) => {
-      setSelectedClient(data);
-      toast({
-        title: "Client identifié",
-        description: `Bienvenue ${data.user?.firstName || "Client"}!`,
-      });
+      const base = data as ClientWithUser;
+      // Enrich with user if missing
+      if (!base.user && base.userId) {
+        apiRequestJson<any>("GET", `/api/users/${base.userId}`, undefined)
+          .then((user: any) => {
+            setSelectedClient({ ...base, user });
+            const fn = (user as any)?.first_name ?? (user as any)?.firstName ?? "";
+            const ln = (user as any)?.last_name ?? (user as any)?.lastName ?? "";
+            const full = `${fn} ${ln}`.trim();
+            toast({
+              title: "Client identifié",
+              description: `Bienvenue ${full || (user as any)?.email || "Client"}!`,
+            });
+          })
+          .catch(() => {
+            setSelectedClient(base);
+            toast({
+              title: "Client identifié",
+              description: `Bienvenue Client!`,
+            });
+          })
+          .finally(() => setShowQRScanner(false));
+      } else {
+        setSelectedClient(base);
+        const fn = (base.user as any)?.first_name ?? (base.user as any)?.firstName ?? "";
+        const ln = (base.user as any)?.last_name ?? (base.user as any)?.lastName ?? "";
+        const full = `${fn} ${ln}`.trim();
+        toast({
+          title: "Client identifié",
+          description: `Bienvenue ${full || (base.user as any)?.email || "Client"}!`,
+        });
+        setShowQRScanner(false);
+      }
     },
     onError: () => {
       toast({
@@ -226,7 +317,7 @@ export default function Cashier() {
     0
   );
 
-  const discountAmount = selectedClient?.eligibleDiscountsRemaining > 0 ? subtotal * 0.05 : 0;
+  const discountAmount = selectedClient && selectedClient.eligibleDiscountsRemaining > 0 ? subtotal * 0.05 : 0;
   const total = subtotal - discountAmount;
 
   const handleCompleteSale = (paymentMethod: string) => {
@@ -238,13 +329,20 @@ export default function Cashier() {
       });
       return;
     }
-
+    if (!selectedClient) {
+      toast({
+        title: "Client requis",
+        description: "Scannez ou identifiez un client pour appliquer la fidélité et les réductions.",
+        variant: "destructive",
+      });
+      return;
+    }
     completeSaleMutation.mutate({
       items: cart.map((item) => ({
         productId: item.productId,
         quantity: item.quantity,
       })),
-      clientId: selectedClient?.id,
+      clientId: selectedClient.id,
       paymentMethod,
     });
   };
@@ -358,15 +456,24 @@ export default function Cashier() {
                 <div className="space-y-3">
                   <div className="p-3 rounded-md bg-muted">
                     <p className="font-medium text-sm">
-                      {selectedClient.user?.firstName} {selectedClient.user?.lastName}
+                      {(() => {
+                        const u: any = selectedClient.user || {};
+                        const fn = u.first_name ?? u.firstName ?? "";
+                        const ln = u.last_name ?? u.lastName ?? "";
+                        const full = `${fn} ${ln}`.trim();
+                        return full || u.email || (selectedClient.userId ? `UID:${selectedClient.userId.slice(0,6)}...` : "Client");
+                      })()}
                     </p>
-                    <p className="text-xs text-muted-foreground">
-                      Points: {selectedClient.loyaltyPoints}
+                    <p className="text-xs text-muted-foreground break-all">
+                      QR: {selectedClient.qrCode}
                     </p>
+                    <div className="text-xs text-muted-foreground flex items-center gap-4 mt-1">
+                      <span>Points: {selectedClient.loyaltyPoints}</span>
+                      <span>Achats: {selectedClient.totalPurchases}</span>
+                    </div>
                     {selectedClient.eligibleDiscountsRemaining > 0 && (
                       <Badge variant="default" className="mt-2 text-xs">
-                        {selectedClient.eligibleDiscountsRemaining} réduction(s) 5%
-                        disponible(s)
+                        {selectedClient.eligibleDiscountsRemaining} réduction(s) 5% disponible(s)
                       </Badge>
                     )}
                   </div>
@@ -405,6 +512,15 @@ export default function Cashier() {
                     data-testid="button-scan-client"
                   >
                     {scanClientMutation.isPending ? "Recherche..." : "Identifier"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowQRScanner(true)}
+                    className="w-full"
+                    size="sm"
+                    data-testid="button-open-qr-camera"
+                  >
+                    Scanner avec la caméra
                   </Button>
                 </div>
               )}
@@ -558,20 +674,20 @@ export default function Cashier() {
               </div>
               <div className="space-y-1 text-xs">
                 <p>Reçu: {lastReceipt.receiptNumber}</p>
-                <p>Date: {new Date().toLocaleString("fr-FR")}</p>
-                {selectedClient && (
-                  <p>Client: {selectedClient.user?.firstName} {selectedClient.user?.lastName}</p>
+                <p>Date: {new Date(lastReceipt.date).toLocaleString("fr-FR")}</p>
+                {lastReceipt.clientDisplayName && (
+                  <p>Client: {lastReceipt.clientDisplayName}</p>
                 )}
               </div>
               <Separator />
               <div className="space-y-1">
                 <p className="font-semibold text-xs mb-2">Articles:</p>
-                {cart.map((item) => (
+                {lastReceipt.items.map((item: any) => (
                   <div key={item.productId} className="flex justify-between text-xs">
                     <span>
                       {item.productName} x{item.quantity}
                     </span>
-                    <span>{(item.unitPrice * item.quantity).toFixed(0)} FCFA</span>
+                    <span>{(item.subtotal).toFixed(0)} FCFA</span>
                   </div>
                 ))}
               </div>
@@ -579,17 +695,17 @@ export default function Cashier() {
               <div className="space-y-1 text-xs">
                 <div className="flex justify-between">
                   <span>Sous-total:</span>
-                  <span>{subtotal.toFixed(0)} FCFA</span>
+                  <span>{Number(lastReceipt.subtotal).toFixed(0)} FCFA</span>
                 </div>
-                {discountAmount > 0 && (
+                {Number(lastReceipt.discountAmount) > 0 && (
                   <div className="flex justify-between text-primary">
                     <span>Réduction:</span>
-                    <span>-{discountAmount.toFixed(0)} FCFA</span>
+                    <span>-{Number(lastReceipt.discountAmount).toFixed(0)} FCFA</span>
                   </div>
                 )}
                 <div className="flex justify-between font-bold text-base pt-2 border-t">
                   <span>TOTAL:</span>
-                  <span>{total.toFixed(0)} FCFA</span>
+                  <span>{Number(lastReceipt.total).toFixed(0)} FCFA</span>
                 </div>
               </div>
               <div className="text-center text-xs text-muted-foreground pt-3 border-t">
@@ -597,6 +713,38 @@ export default function Cashier() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* QR Scanner Dialog */}
+      <Dialog open={showQRScanner} onOpenChange={setShowQRScanner}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Scanner le code QR</DialogTitle>
+            <DialogDescription>
+              Alignez le code QR du client dans le cadre pour l’identifier automatiquement.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="rounded-md overflow-hidden">
+              <Scanner
+                onScan={(detected) => {
+                  const value = Array.isArray(detected) && detected[0]?.rawValue
+                    ? String(detected[0].rawValue)
+                    : "";
+                  if (!value) return;
+                  setQrCodeInput(value);
+                  scanClientMutation.mutate(value);
+                }}
+                onError={(_err) => { /* ignore camera errors for now */ }}
+                constraints={{ facingMode: "environment" }}
+                scanDelay={400}
+              />
+            </div>
+            <Button variant="outline" onClick={() => setShowQRScanner(false)} className="w-full">
+              Annuler
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

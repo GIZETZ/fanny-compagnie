@@ -12,6 +12,7 @@ import Cashier from "@/pages/cashier";
 import ClientPortal from "@/pages/client-portal";
 import HRManagement from "@/pages/hr-management";
 import Supervisor from "@/pages/supervisor";
+import PendingRole from "@/pages/pending-role";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -54,6 +55,7 @@ function Router() {
             <Route path="/client" component={ClientPortal} />
             <Route path="/hr" component={HRManagement} />
             <Route path="/supervisor" component={Supervisor} />
+            <Route path="/pending" component={PendingRole} />
             <Route component={NotFound} />
           </Switch>
         </main>
@@ -74,6 +76,8 @@ function getDefaultRoute(role: string) {
       return HRManagement;
     case "supervisor":
       return Supervisor;
+    case "pending":
+      return PendingRole;
     default:
       return Landing;
   }
