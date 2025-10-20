@@ -1,0 +1,16 @@
+[build]
+  command = "npm run build"
+  publish = "dist/public"
+  functions = "netlify/functions"
+
+# Proxy API requests to the Netlify Function
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200
+
+# SPA fallback so client-side routing works
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
