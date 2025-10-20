@@ -3,6 +3,10 @@
   publish = "dist/public"
   functions = "netlify/functions"
 
+[build.environment]
+  NPM_FLAGS = "--include=dev"
+  NODE_VERSION = "20"
+
 # Proxy API requests to the Netlify Function
 [[redirects]]
   from = "/api/*"
